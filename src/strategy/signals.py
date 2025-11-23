@@ -29,11 +29,13 @@ class Signal:
 
     # Risk management
     stop_loss: Decimal
-    take_profit: Optional[Decimal] = None  # Primary TP (if fixed R:R)
 
-    # Context
+    # Context (required fields - no defaults)
     absorption_event: AbsorptionEvent = field(repr=False)
     shift_event: ShiftEvent = field(repr=False)
+
+    # Optional/default fields must come after required fields
+    take_profit: Optional[Decimal] = None  # Primary TP (if fixed R:R)
 
     # Metrics
     risk_amount: Decimal = Decimal("0")  # Entry - SL
