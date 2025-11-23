@@ -113,6 +113,14 @@ class TakeProfitConfig:
 
 
 @dataclass
+class SessionFilter:
+    """Trading session filter."""
+    start: str = "08:00"
+    end: str = "20:00"
+    timezone: str = "UTC"
+
+
+@dataclass
 class BacktestConfig:
     """Backtest execution configuration."""
     initial_capital: float = 10000.0
@@ -127,6 +135,7 @@ class BacktestConfig:
     min_trade_interval: int = 3
     min_volatility: float = 0.0
     max_volatility: float = 1.0
+    session_filter: Optional[SessionFilter] = None
 
 
 @dataclass
@@ -137,6 +146,10 @@ class ReportingConfig:
     save_equity_curve: bool = True
     generate_html: bool = True
     generate_charts: bool = True
+    metrics: List[str] = field(default_factory=lambda: [
+        "win_rate", "profit_factor", "sharpe_ratio", "sortino_ratio",
+        "max_drawdown", "avg_r_multiple", "expectancy", "mfe_mae"
+    ])
 
 
 @dataclass
@@ -216,7 +229,11 @@ class Config:
             ]
 
         if "backtest" in data:
-            config.backtest = BacktestConfig(**data["backtest"])
+            backtest_data = data["backtest"].copy()
+            session_filter_data = backtest_data.pop("session_filter", None)
+            config.backtest = BacktestConfig(**backtest_data)
+            if session_filter_data:
+                config.backtest.session_filter = SessionFilter(**session_filter_data)
 
         if "reporting" in data:
             config.reporting = ReportingConfig(**data["reporting"])
