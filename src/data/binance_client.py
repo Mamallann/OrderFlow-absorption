@@ -97,17 +97,22 @@ class BinanceClient:
         url = f"{self.BASE_URL}{self.AGGTRADES_ENDPOINT}"
 
         try:
+            logger.info(f"Fetching from {url} with params: {params}")
             response = await client.get(url, params=params)
             response.raise_for_status()
             data = response.json()
 
+            if not data:
+                logger.warning(f"Empty response from Binance for {symbol}")
+                return []
+
             trades = [AggTrade.from_binance(item) for item in data]
-            logger.debug(f"Fetched {len(trades)} trades for {symbol}")
+            logger.info(f"Fetched {len(trades)} trades for {symbol}")
 
             return trades
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error fetching trades: {e}")
+            logger.error(f"HTTP error fetching trades: {e.response.status_code} - {e.response.text}")
             raise
         except Exception as e:
             logger.error(f"Error fetching trades: {e}")
