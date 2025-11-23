@@ -68,6 +68,18 @@ def parse_args():
         action="store_true",
         help="Download all symbols from config"
     )
+    parser.add_argument(
+        "--max-trades",
+        type=int,
+        default=0,
+        help="Maximum trades to download (0 = unlimited). Use 500000 for ~1 hour of BTC"
+    )
+    parser.add_argument(
+        "--hours",
+        type=int,
+        default=0,
+        help="Download only N hours of data (overrides --end)"
+    )
 
     return parser.parse_args()
 
@@ -79,18 +91,21 @@ async def download_symbol(
     end_date: str,
     output_dir: str,
     file_format: str,
+    max_trades: int = 0,
 ):
     """Download data for a single symbol."""
     print(f"\n{'='*60}")
     print(f"Downloading {symbol}")
     print(f"Period: {start_date} to {end_date}")
+    if max_trades > 0:
+        print(f"Max trades: {max_trades:,}")
     print(f"{'='*60}\n")
 
     start_time = datetime.now()
+    trade_count = [0]  # Use list to allow modification in nested function
 
     def progress(current_ts, end_ts):
         current_dt = datetime.fromtimestamp(current_ts / 1000)
-        end_dt = datetime.fromtimestamp(end_ts / 1000)
         progress_pct = (current_ts - int(datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000)) / \
                       (end_ts - int(datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000)) * 100
         print(f"\rProgress: {progress_pct:.1f}% - Current: {current_dt.strftime('%Y-%m-%d %H:%M')}", end="")
@@ -103,6 +118,7 @@ async def download_symbol(
             output_dir=output_dir,
             file_format=file_format,
             progress_callback=progress,
+            max_trades=max_trades,
         )
 
         elapsed = datetime.now() - start_time
@@ -134,12 +150,23 @@ async def main():
     start_date = args.start or config.date_range.start
     end_date = args.end or config.date_range.end
 
+    # Handle --hours option (overrides end_date)
+    if args.hours > 0:
+        from datetime import timedelta
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = start_dt + timedelta(hours=args.hours)
+        end_date = end_dt.strftime("%Y-%m-%d")
+        print(f"Using {args.hours} hour(s) of data")
+
     # Output settings
     output_dir = args.output or config.data.data_dir + "/raw"
     file_format = args.format
+    max_trades = args.max_trades
 
     print(f"Symbols: {symbols}")
     print(f"Date range: {start_date} to {end_date}")
+    if max_trades > 0:
+        print(f"Max trades: {max_trades:,}")
     print(f"Output: {output_dir} ({file_format})")
 
     # Create client and download
@@ -155,6 +182,7 @@ async def main():
                 end_date=end_date,
                 output_dir=output_dir,
                 file_format=file_format,
+                max_trades=max_trades,
             )
             results.append((symbol, result))
 

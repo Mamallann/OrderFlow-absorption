@@ -199,6 +199,7 @@ class BinanceClient:
         start_date: str,
         end_date: str,
         progress_callback: Optional[callable] = None,
+        max_trades: int = 0,
     ) -> pd.DataFrame:
         """
         Download all trades in date range to DataFrame.
@@ -208,6 +209,7 @@ class BinanceClient:
             start_date: Start date string (YYYY-MM-DD)
             end_date: End date string (YYYY-MM-DD)
             progress_callback: Optional progress callback
+            max_trades: Maximum trades to download (0 = unlimited)
 
         Returns:
             DataFrame with all trades
@@ -221,6 +223,8 @@ class BinanceClient:
         logger.info(
             f"Downloading {symbol} trades from {start_date} to {end_date}"
         )
+        if max_trades > 0:
+            logger.info(f"Limiting to {max_trades:,} trades")
 
         all_trades = []
 
@@ -229,6 +233,12 @@ class BinanceClient:
         ):
             all_trades.extend(batch)
             logger.info(f"Downloaded {len(all_trades)} trades so far...")
+
+            # Check max trades limit
+            if max_trades > 0 and len(all_trades) >= max_trades:
+                all_trades = all_trades[:max_trades]
+                logger.info(f"Reached max trades limit: {max_trades:,}")
+                break
 
         if not all_trades:
             logger.warning(f"No trades found for {symbol}")
@@ -259,6 +269,7 @@ class BinanceClient:
         output_dir: str = "data/raw",
         file_format: str = "parquet",
         progress_callback: Optional[callable] = None,
+        max_trades: int = 0,
     ) -> Path:
         """
         Download trades to file.
@@ -270,12 +281,13 @@ class BinanceClient:
             output_dir: Output directory
             file_format: "parquet" or "csv"
             progress_callback: Optional progress callback
+            max_trades: Maximum trades to download (0 = unlimited)
 
         Returns:
             Path to saved file
         """
         df = await self.download_to_dataframe(
-            symbol, start_date, end_date, progress_callback
+            symbol, start_date, end_date, progress_callback, max_trades
         )
 
         if df.empty:
