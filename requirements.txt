@@ -1,0 +1,32 @@
+# OrderFlow Absorption Backtest
+# Python 3.10+ required
+
+# Core
+pandas>=2.0.0
+numpy>=1.24.0
+polars>=0.19.0
+
+# Data & API
+python-binance>=1.0.17
+aiohttp>=3.8.0
+httpx>=0.25.0
+pyarrow>=14.0.0
+
+# Types & Validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+PyYAML>=6.0.0
+
+# Visualization
+matplotlib>=3.7.0
+plotly>=5.15.0
+mplfinance>=0.12.0
+rich>=13.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Performance (optional)
+# numba>=0.58.0

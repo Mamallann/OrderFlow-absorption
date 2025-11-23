@@ -1,0 +1,180 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ORDERFLOW ABSORPTION BACKTEST CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Data Settings
+data:
+  symbols:
+    - "BTCUSDT"
+    - "ETHUSDT"
+    - "SOLUSDT"
+  timeframe: "10m"              # Candle timeframe
+  tick_size: 100.0              # Price quantization in USD (100 = $100 per level)
+  data_dir: "data"              # Data storage directory
+
+# Date Range (flexible)
+date_range:
+  start: "2024-01-01"           # Start date (YYYY-MM-DD)
+  end: "2024-12-31"             # End date (YYYY-MM-DD)
+  # Alternative: use relative dates
+  # lookback_days: 365          # Use last N days instead of fixed dates
+
+# Binance API (optional - for live data)
+binance:
+  api_key: ""                   # Leave empty for public endpoints
+  api_secret: ""
+  testnet: false
+  rate_limit_delay: 0.1         # Seconds between API calls
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IMBALANCE SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+imbalance:
+  ratio_threshold: 3.0          # 3.0 = 300% (bid must be 3x diagonal ask)
+  min_volume: 1.0               # Minimum volume to consider (filter noise)
+  consecutive_rows: 3           # Required consecutive imbalance rows
+  diagonal_offset: 1            # Price levels for diagonal comparison
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ABSORPTION DETECTION RULES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+absorption:
+  # Delta conditions
+  delta_lookback: 2             # Compare with N previous candles
+  delta_comparison: "both"      # "both", "any", "average"
+                                # both: delta(N) < delta(N-1) AND delta(N-2)
+                                # any: delta(N) < delta(N-1) OR delta(N-2)
+                                # average: delta(N) < avg(delta[N-lookback:N])
+  delta_multiplier: 1.0         # Delta threshold multiplier (optional)
+
+  # Price action conditions
+  price_hold_mode: "no_break"   # "no_break", "wick_rejection", "both"
+                                # no_break: low(N) >= low(N-1)
+                                # wick_rejection: close > low + threshold
+                                # both: either condition passes
+  wick_rejection_ratio: 0.3     # Wick must be < 30% of candle body
+  allow_equal_lows: true        # Allow low(N) == low(N-1)
+
+  # Imbalance requirements
+  min_imbalance_rows: 3         # Minimum consecutive imbalance rows
+  min_imbalance_ratio: 3.0      # Minimum ratio for valid imbalance
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SHIFT DETECTION RULES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+shift:
+  require_opposite_imbalance: true    # Must have ASK imbalance (for long)
+  min_opposite_imbalances: 1          # Minimum opposite imbalance count
+  require_delta_flip: false           # Delta must flip sign
+  require_buy_aggression: true        # At least 1 level with buy > sell
+  max_candles_after_absorption: 3     # Max candles to wait for shift
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENTRY RULES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+entry:
+  mode: "shift_close"           # "shift_close", "breakout", "next_candle_open"
+                                # shift_close: enter at shift candle close
+                                # breakout: enter when price breaks shift high
+                                # next_candle_open: enter at next candle open
+  breakout_buffer: 0.0001       # Buffer above high for breakout entry (0.01%)
+  require_volume_confirmation: false  # Require volume > average
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STOP LOSS SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+stop_loss:
+  mode: "absorption_low"        # "absorption_low", "shift_low", "atr", "fixed"
+  buffer: 0.001                 # Buffer below low (0.1%)
+  atr_multiplier: 1.5           # ATR multiplier (if mode=atr)
+  fixed_percent: 0.02           # Fixed SL percentage (if mode=fixed)
+  max_sl_percent: 0.05          # Maximum allowed SL (5%)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAKE PROFIT SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+take_profit:
+  mode: "rr_then_trail"         # "rr", "rr_then_trail", "trail_only", "targets"
+
+  # R:R Settings
+  rr_ratio: 2.0                 # Risk:Reward ratio (1:2)
+  rr_targets:                   # Multiple TP targets (if mode=targets)
+    - ratio: 1.0                # TP1 at 1R
+      size: 0.5                 # Close 50% of position
+    - ratio: 2.0                # TP2 at 2R
+      size: 0.3                 # Close 30% of position
+    - ratio: 3.0                # TP3 at 3R (or trail)
+      size: 0.2                 # Close remaining 20%
+
+  # Trailing Stop Settings (activates after TP1)
+  trailing:
+    activation_rr: 1.0          # Activate trail after reaching 1R
+    trail_percent: 0.005        # Trail by 0.5%
+    trail_atr_multiplier: 1.0   # Trail by ATR (alternative)
+    use_atr: false              # Use ATR-based trailing
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BACKTEST SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+backtest:
+  initial_capital: 10000.0      # Starting capital in USD
+  position_size_mode: "risk"    # "risk", "fixed", "percent"
+  risk_per_trade: 0.02          # Risk 2% per trade (if mode=risk)
+  fixed_size: 1000.0            # Fixed position size (if mode=fixed)
+  position_percent: 0.1         # 10% of capital (if mode=percent)
+
+  # Fees
+  commission: 0.0004            # 0.04% taker fee
+  slippage: 0.0001              # 0.01% slippage
+
+  # Trade Management
+  max_trades_per_day: 10        # Maximum trades per day
+  max_concurrent_trades: 3      # Maximum open positions
+  min_trade_interval: 3         # Minimum candles between trades
+
+  # Filters
+  min_volatility: 0.0           # Minimum ATR filter
+  max_volatility: 1.0           # Maximum ATR filter
+  session_filter: null          # Trading session filter (null = 24/7)
+  # session_filter:
+  #   start: "08:00"
+  #   end: "20:00"
+  #   timezone: "UTC"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REPORTING SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+reporting:
+  output_dir: "data/results"
+  save_trades: true             # Save individual trade details
+  save_equity_curve: true       # Save equity curve data
+  generate_html: true           # Generate HTML report
+  generate_charts: true         # Generate chart images
+
+  # Metrics to calculate
+  metrics:
+    - "win_rate"
+    - "profit_factor"
+    - "sharpe_ratio"
+    - "sortino_ratio"
+    - "max_drawdown"
+    - "avg_r_multiple"
+    - "expectancy"
+    - "mfe_mae"                  # Max Favorable/Adverse Excursion
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOGGING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+logging:
+  level: "INFO"                 # DEBUG, INFO, WARNING, ERROR
+  file: "logs/backtest.log"
+  console: true
