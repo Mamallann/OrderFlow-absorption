@@ -27,7 +27,8 @@ class BinanceClient:
     BASE_URL = "https://fapi.binance.com"
     AGGTRADES_ENDPOINT = "/fapi/v1/aggTrades"
     MAX_TRADES_PER_REQUEST = 1000
-    DEFAULT_RATE_LIMIT_DELAY = 0.1  # seconds
+    DEFAULT_RATE_LIMIT_DELAY = 0.25  # seconds (safer default)
+    MAX_RETRIES = 5
 
     def __init__(
         self,
@@ -141,10 +142,12 @@ class BinanceClient:
         """
         current_time = start_time
         last_trade_id = None
+        retry_count = 0
+        current_delay = self.rate_limit_delay
 
         while current_time < end_time:
             # Rate limiting
-            await asyncio.sleep(self.rate_limit_delay)
+            await asyncio.sleep(current_delay)
 
             try:
                 if last_trade_id is not None:
@@ -162,6 +165,10 @@ class BinanceClient:
                         end_time=end_time,
                         limit=self.MAX_TRADES_PER_REQUEST,
                     )
+
+                # Success - reset retry state
+                retry_count = 0
+                current_delay = self.rate_limit_delay
 
                 if not trades:
                     logger.info(f"No more trades after {current_time}")
@@ -187,9 +194,34 @@ class BinanceClient:
                 if len(trades) < self.MAX_TRADES_PER_REQUEST:
                     break
 
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    # Rate limited - exponential backoff
+                    retry_count += 1
+                    if retry_count > self.MAX_RETRIES:
+                        logger.error(f"Max retries ({self.MAX_RETRIES}) exceeded")
+                        raise
+
+                    # Exponential backoff: 2, 4, 8, 16, 32 seconds
+                    backoff_time = 2 ** retry_count
+                    logger.warning(
+                        f"Rate limited (429). Waiting {backoff_time}s... "
+                        f"(retry {retry_count}/{self.MAX_RETRIES})"
+                    )
+                    await asyncio.sleep(backoff_time)
+
+                    # Also increase base delay for subsequent requests
+                    current_delay = min(current_delay * 1.5, 2.0)
+                    continue
+                else:
+                    logger.error(f"HTTP error: {e}")
+                    raise
+
             except Exception as e:
                 logger.error(f"Error in fetch loop: {e}")
-                # Wait and retry
+                retry_count += 1
+                if retry_count > self.MAX_RETRIES:
+                    raise
                 await asyncio.sleep(2.0)
                 continue
 

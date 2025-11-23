@@ -24,7 +24,7 @@ binance:
   api_key: ""                   # Leave empty for public endpoints
   api_secret: ""
   testnet: false
-  rate_limit_delay: 0.1         # Seconds between API calls
+  rate_limit_delay: 0.25        # Seconds between API calls (0.25 = 4 req/sec, safe limit)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # IMBALANCE SETTINGS
